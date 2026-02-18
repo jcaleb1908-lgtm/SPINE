@@ -346,6 +346,76 @@ def materialize_query(
 
 # ---- notebook_extracts ----
 
+@dataclass(frozen=True)
+class GeneratedDomainSpec:
+    """Specification for one generated domain extract."""
+
+    name: str
+    table: str
+    concept_col: str
+    concept_ids: tuple[int, ...]
+    datetime_col: str
+
+
+GENERATED_DOMAIN_SPECS: tuple[GeneratedDomainSpec, ...] = (
+    GeneratedDomainSpec(
+        name="drug",
+        table="drug_exposure",
+        concept_col="drug_concept_id",
+        concept_ids=(1123618, 1503297),
+        datetime_col="drug_exposure_start_datetime",
+    ),
+    GeneratedDomainSpec(
+        name="measurement",
+        table="measurement",
+        concept_col="measurement_concept_id",
+        concept_ids=(
+            1002597,
+            3004249,
+            3004410,
+            3012888,
+            3025315,
+            3031203,
+            3037110,
+            37027885,
+            37045117,
+            40772572,
+            40779160,
+            40782589,
+            40782590,
+            40789535,
+            40795740,
+            40795800,
+            4087496,
+            4093979,
+            4099154,
+            4245997,
+        ),
+        datetime_col="measurement_datetime",
+    ),
+    GeneratedDomainSpec(
+        name="condition",
+        table="condition_occurrence",
+        concept_col="condition_concept_id",
+        concept_ids=(
+            137548,
+            198520,
+            36717608,
+            4134121,
+            4134122,
+            4167097,
+            4187244,
+            608177,
+            761918,
+            77079,
+            79119,
+            80816,
+        ),
+        datetime_col="condition_start_datetime",
+    ),
+)
+
+
 def cohort_filter_sql_for_generated_exports(dataset: str, person_alias: str) -> str:
     """Shared filter block for All of Us generated cohort exports."""
     return f"""
@@ -496,47 +566,21 @@ WHERE {person_filter}
 """
 
 
-def generated_domain_sql(dataset: str, domain_table: str, concept_col: str, concept_ids: list[int], datetime_col: str) -> str:
-    if not concept_ids:
-        raise ValueError("concept_ids cannot be empty")
-    concept_list = ", ".join(str(int(x)) for x in concept_ids)
+def generated_domain_sql(spec: GeneratedDomainSpec, dataset: str) -> str:
+    concept_list = ", ".join(str(int(x)) for x in spec.concept_ids)
     row_alias = "d"
     person_filter = cohort_filter_sql_for_generated_exports(dataset, row_alias)
     return f"""
 SELECT *
-FROM `{dataset}.{domain_table}` {row_alias}
-WHERE {row_alias}.{concept_col} IN ({concept_list})
+FROM `{dataset}.{spec.table}` {row_alias}
+WHERE {row_alias}.{spec.concept_col} IN ({concept_list})
   AND {person_filter}
-  AND {row_alias}.{datetime_col} IS NOT NULL
+  AND {row_alias}.{spec.datetime_col} IS NOT NULL
 """
 
 
-def extract_generated_exports(dataset: str) -> dict[str, pd.DataFrame]:
-    """Convenience extractor for the five generated domains in one call."""
-    validate_dataset_id(dataset)
-    person_df = run_notebook_generated_query(generated_person_sql(dataset))
-    drug_df = run_notebook_generated_query(
-        generated_domain_sql(dataset, "drug_exposure", "drug_concept_id", [1123618, 1503297], "drug_exposure_start_datetime")
-    )
-    measurement_df = run_notebook_generated_query(
-        generated_domain_sql(
-            dataset,
-            "measurement",
-            "measurement_concept_id",
-            [1002597, 3004249, 3004410, 3012888, 3025315, 3031203, 3037110, 37027885, 37045117, 40772572, 40779160, 40782589, 40782590, 40789535, 40795740, 40795800, 4087496, 4093979, 4099154, 4245997],
-            "measurement_datetime",
-        )
-    )
-    condition_df = run_notebook_generated_query(
-        generated_domain_sql(
-            dataset,
-            "condition_occurrence",
-            "condition_concept_id",
-            [137548, 198520, 36717608, 4134121, 4134122, 4167097, 4187244, 608177, 761918, 77079, 79119, 80816],
-            "condition_start_datetime",
-        )
-    )
-    survey_sql = f"""
+def generated_survey_sql(dataset: str) -> str:
+    return f"""
 SELECT
     answer.person_id,
     answer.survey_datetime,
@@ -551,14 +595,27 @@ FROM `{dataset}.ds_survey` answer
 WHERE answer.question_concept_id IN (1586134, 1585855)
   AND {cohort_filter_sql_for_generated_exports(dataset, 'answer')}
 """
-    survey_df = run_notebook_generated_query(survey_sql)
-    return {
-        "person": person_df,
-        "drug": drug_df,
-        "measurement": measurement_df,
-        "condition": condition_df,
-        "survey": survey_df,
-    }
+
+
+def extract_generated_exports(dataset: str) -> dict[str, pd.DataFrame]:
+    """Convenience extractor for person + generated domain extracts in one call."""
+    validate_dataset_id(dataset)
+    out: dict[str, pd.DataFrame] = {"person": run_notebook_generated_query(generated_person_sql(dataset))}
+    for spec in GENERATED_DOMAIN_SPECS:
+        out[spec.name] = run_notebook_generated_query(generated_domain_sql(spec, dataset))
+    out["survey"] = run_notebook_generated_query(generated_survey_sql(dataset))
+    return out
+
+
+def preview_generated_exports(extracts: dict[str, pd.DataFrame], rows: int = 5) -> dict[str, pd.DataFrame]:
+    """Return copy-friendly preview tables for notebook output validation."""
+    previews: dict[str, pd.DataFrame] = {}
+    for key, df in extracts.items():
+        preview = df.head(rows).copy()
+        preview.insert(0, "_dataset", key)
+        previews[key] = preview
+    return previews
+
 
 # ---- cohort ----
 
