@@ -36,3 +36,11 @@ def print_tables_fully(tables, max_rows=None, max_cols=None, max_colwidth=None):
             print(f"\n===== {name} | rows={len(df):,} cols={df.shape[1]} =====")
             print(df.to_string(index=False))
 ```
+
+## Clean notebook file
+
+If you want a fresh standalone notebook-safe version, use `spine_notebook_fixed.py`.
+It includes:
+- `print_tables_fully(...)`
+- `strip_git_conflict_markers(...)`
+- generated extract helpers and `extract_generated_exports(...)`
