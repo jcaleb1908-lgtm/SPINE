@@ -11,6 +11,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+
+def _default_output_dir() -> str:
+    """Return a notebook-safe default output directory."""
+    if "__file__" in globals():
+        return str(Path(__file__).resolve().parents[1] / "project6_outputs")
+    return str((Path.cwd() / "project6_outputs").resolve())
+
+
 CHANGE_LOG = [
     "2026-02-16: Refactored SPINE.rtf notebook-style code into a modular pipeline with a single main() entrypoint.",
     "2026-02-16: Preserved prior treatment group logic (metformin_only, glp1_only, combo) and made combo window configurable.",
@@ -131,7 +139,7 @@ CONFIG = {
     "ps_weight_truncation_quantiles": (0.01, 0.99),
     "weight_change_target_days": [180, 365, 730],
     "weight_change_window_tolerance_days": 60,
-    "output_dir": str(Path(__file__).resolve().parents[1] / "project6_outputs"),
+    "output_dir": _default_output_dir(),
 }
 
 REQUIRED_OUTPUT_FILES = [
