@@ -11,6 +11,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+
+def _default_output_dir() -> str:
+    """Return a notebook-safe default output directory."""
+    if "__file__" in globals():
+        return str(Path(__file__).resolve().parents[1] / "project6_outputs")
+    return str((Path.cwd() / "project6_outputs").resolve())
+
+
 CHANGE_LOG = [
     "2026-02-16: Refactored SPINE.rtf notebook-style code into a modular pipeline with a single main() entrypoint.",
     "2026-02-16: Preserved prior treatment group logic (metformin_only, glp1_only, combo) and made combo window configurable.",
@@ -131,7 +139,7 @@ CONFIG = {
     "ps_weight_truncation_quantiles": (0.01, 0.99),
     "weight_change_target_days": [180, 365, 730],
     "weight_change_window_tolerance_days": 60,
-    "output_dir": str(Path(__file__).resolve().parents[1] / "project6_outputs"),
+    "output_dir": _default_output_dir(),
 }
 
 REQUIRED_OUTPUT_FILES = [
@@ -341,6 +349,281 @@ def materialize_query(
     except (BadRequest, Forbidden, NotFound, GoogleAPICallError) as exc:
         logging.exception("BigQuery materialization failed: %s", job_name)
         raise RuntimeError(f"BigQuery materialization failed ({job_name}): {exc}") from exc
+
+
+
+# ---- notebook_extracts ----
+
+@dataclass(frozen=True)
+class GeneratedDomainSpec:
+    """Specification for one generated domain extract."""
+
+    name: str
+    table: str
+    concept_col: str
+    concept_ids: tuple[int, ...]
+    datetime_col: str
+
+
+GENERATED_DOMAIN_SPECS: tuple[GeneratedDomainSpec, ...] = (
+    GeneratedDomainSpec(
+        name="drug",
+        table="drug_exposure",
+        concept_col="drug_concept_id",
+        concept_ids=(1123618, 1503297),
+        datetime_col="drug_exposure_start_datetime",
+    ),
+    GeneratedDomainSpec(
+        name="measurement",
+        table="measurement",
+        concept_col="measurement_concept_id",
+        concept_ids=(
+            1002597,
+            3004249,
+            3004410,
+            3012888,
+            3025315,
+            3031203,
+            3037110,
+            37027885,
+            37045117,
+            40772572,
+            40779160,
+            40782589,
+            40782590,
+            40789535,
+            40795740,
+            40795800,
+            4087496,
+            4093979,
+            4099154,
+            4245997,
+        ),
+        datetime_col="measurement_datetime",
+    ),
+    GeneratedDomainSpec(
+        name="condition",
+        table="condition_occurrence",
+        concept_col="condition_concept_id",
+        concept_ids=(
+            137548,
+            198520,
+            36717608,
+            4134121,
+            4134122,
+            4167097,
+            4187244,
+            608177,
+            761918,
+            77079,
+            79119,
+            80816,
+        ),
+        datetime_col="condition_start_datetime",
+    ),
+)
+
+
+def cohort_filter_sql_for_generated_exports(dataset: str, person_alias: str) -> str:
+    """Shared filter block for All of Us generated cohort exports."""
+    return f"""
+{person_alias}.person_id IN (SELECT
+    DISTINCT person_id
+FROM
+    `{dataset}.cb_search_person` cb_search_person
+WHERE
+    cb_search_person.person_id IN (SELECT
+        person_id
+    FROM
+        `{dataset}.cb_search_person` p
+    WHERE
+        DATE_DIFF(CURRENT_DATE, dob, YEAR) - IF(EXTRACT(MONTH FROM dob)*100 + EXTRACT(DAY FROM dob) > EXTRACT(MONTH FROM CURRENT_DATE)*100 + EXTRACT(DAY FROM CURRENT_DATE), 1, 0) BETWEEN 40 AND 65
+        AND NOT EXISTS (SELECT
+            1
+        FROM
+            `{dataset}.death` d
+        WHERE
+            d.person_id = p.person_id))
+    AND cb_search_person.person_id IN (SELECT
+        criteria.person_id
+    FROM
+        (SELECT
+            DISTINCT person_id, concept_id
+        FROM
+            `{dataset}.cb_search_all_events`
+        WHERE
+            concept_id IN (SELECT
+                DISTINCT c.concept_id
+            FROM
+                `{dataset}.cb_criteria` c
+            JOIN
+                (SELECT
+                    CAST(cr.id AS STRING) AS id
+                FROM
+                    `{dataset}.cb_criteria` cr
+                WHERE
+                    concept_id IN (201826)
+                    AND full_text LIKE '%_rank1]%') a
+                ON (c.path LIKE CONCAT('%.', a.id, '.%')
+                OR c.path LIKE CONCAT('%.', a.id)
+                OR c.path LIKE CONCAT(a.id, '.%')
+                OR c.path = a.id)
+            WHERE
+                is_standard = 1
+                AND is_selectable = 1)
+            AND is_standard = 1)) criteria)
+    AND cb_search_person.person_id IN (SELECT
+        DISTINCT person_id
+    FROM
+        `{dataset}.cb_search_all_events`
+    WHERE
+        concept_id IN (903124)
+        AND is_standard = 0)
+    AND cb_search_person.person_id NOT IN (SELECT
+        criteria.person_id
+    FROM
+        (SELECT
+            DISTINCT person_id, concept_id
+        FROM
+            `{dataset}.cb_search_all_events`
+        WHERE
+            concept_id IN (SELECT
+                DISTINCT c.concept_id
+            FROM
+                `{dataset}.cb_criteria` c
+            JOIN
+                (SELECT
+                    CAST(cr.id AS STRING) AS id
+                FROM
+                    `{dataset}.cb_criteria` cr
+                WHERE
+                    concept_id IN (24612, 313217, 199074)
+                    AND full_text LIKE '%_rank1]%') a
+                ON (c.path LIKE CONCAT('%.', a.id, '.%')
+                OR c.path LIKE CONCAT('%.', a.id)
+                OR c.path LIKE CONCAT(a.id, '.%')
+                OR c.path = a.id)
+            WHERE
+                is_standard = 1
+                AND is_selectable = 1)
+            AND is_standard = 1)) criteria)
+    AND cb_search_person.person_id NOT IN (SELECT
+        person_id
+    FROM
+        `{dataset}.person`
+    WHERE
+        ethnicity_concept_id IN (903096, 0, 903079, 1586148)
+    UNION DISTINCT SELECT
+        person_id
+    FROM
+        `{dataset}.person`
+    WHERE
+        race_concept_id IN (2100000001, 903096, 45882607, 1177221)
+    UNION DISTINCT SELECT
+        person_id
+    FROM
+        `{dataset}.person`
+    WHERE
+        gender_concept_id IN (2000000002, 0)
+    UNION DISTINCT SELECT
+        person_id
+    FROM
+        `{dataset}.person`
+    WHERE
+        sex_at_birth_concept_id IN (2000000009, 0))
+)
+"""
+
+
+def run_notebook_generated_query(sql: str) -> pd.DataFrame:
+    """Run generated SQL using pandas-gbq for notebook-style workflows."""
+    try:
+        return pd.read_gbq(
+            sql,
+            dialect="standard",
+            use_bqstorage_api=("BIGQUERY_STORAGE_API_ENABLED" in os.environ),
+            progress_bar_type="tqdm_notebook",
+        )
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(f"Notebook query failed: {exc}") from exc
+
+
+def generated_person_sql(dataset: str) -> str:
+    person_filter = cohort_filter_sql_for_generated_exports(dataset, "person")
+    return f"""
+SELECT
+    person.person_id,
+    person.gender_concept_id,
+    p_gender.concept_name AS gender,
+    person.birth_datetime AS date_of_birth,
+    person.race_concept_id,
+    p_race.concept_name AS race,
+    person.ethnicity_concept_id,
+    p_ethnicity.concept_name AS ethnicity,
+    person.sex_at_birth_concept_id,
+    p_sex_at_birth.concept_name AS sex_at_birth,
+    person.self_reported_category_concept_id,
+    p_self_reported.concept_name AS self_reported_category
+FROM `{dataset}.person` person
+LEFT JOIN `{dataset}.concept` p_gender ON person.gender_concept_id = p_gender.concept_id
+LEFT JOIN `{dataset}.concept` p_race ON person.race_concept_id = p_race.concept_id
+LEFT JOIN `{dataset}.concept` p_ethnicity ON person.ethnicity_concept_id = p_ethnicity.concept_id
+LEFT JOIN `{dataset}.concept` p_sex_at_birth ON person.sex_at_birth_concept_id = p_sex_at_birth.concept_id
+LEFT JOIN `{dataset}.concept` p_self_reported ON person.self_reported_category_concept_id = p_self_reported.concept_id
+WHERE {person_filter}
+"""
+
+
+def generated_domain_sql(spec: GeneratedDomainSpec, dataset: str) -> str:
+    concept_list = ", ".join(str(int(x)) for x in spec.concept_ids)
+    row_alias = "d"
+    person_filter = cohort_filter_sql_for_generated_exports(dataset, row_alias)
+    return f"""
+SELECT *
+FROM `{dataset}.{spec.table}` {row_alias}
+WHERE {row_alias}.{spec.concept_col} IN ({concept_list})
+  AND {person_filter}
+  AND {row_alias}.{spec.datetime_col} IS NOT NULL
+"""
+
+
+def generated_survey_sql(dataset: str) -> str:
+    return f"""
+SELECT
+    answer.person_id,
+    answer.survey_datetime,
+    answer.survey,
+    answer.question_concept_id,
+    answer.question,
+    answer.answer_concept_id,
+    answer.answer,
+    answer.survey_version_concept_id,
+    answer.survey_version_name
+FROM `{dataset}.ds_survey` answer
+WHERE answer.question_concept_id IN (1586134, 1585855)
+  AND {cohort_filter_sql_for_generated_exports(dataset, 'answer')}
+"""
+
+
+def extract_generated_exports(dataset: str) -> dict[str, pd.DataFrame]:
+    """Convenience extractor for person + generated domain extracts in one call."""
+    validate_dataset_id(dataset)
+    out: dict[str, pd.DataFrame] = {"person": run_notebook_generated_query(generated_person_sql(dataset))}
+    for spec in GENERATED_DOMAIN_SPECS:
+        out[spec.name] = run_notebook_generated_query(generated_domain_sql(spec, dataset))
+    out["survey"] = run_notebook_generated_query(generated_survey_sql(dataset))
+    return out
+
+
+def preview_generated_exports(extracts: dict[str, pd.DataFrame], rows: int = 5) -> dict[str, pd.DataFrame]:
+    """Return copy-friendly preview tables for notebook output validation."""
+    previews: dict[str, pd.DataFrame] = {}
+    for key, df in extracts.items():
+        preview = df.head(rows).copy()
+        preview.insert(0, "_dataset", key)
+        previews[key] = preview
+    return previews
+
 
 # ---- cohort ----
 
