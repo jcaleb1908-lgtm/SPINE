@@ -49,7 +49,25 @@ def strip_git_conflict_markers(text: str) -> str:
     )
 
 
+def strip_git_patch_headers(text: str) -> str:
+    """Remove git patch/diff metadata accidentally pasted into notebook code cells."""
+    bad_prefixes = (
+        "diff --git ",
+        "index ",
+        "@@ ",
+        "--- ",
+        "+++ ",
+    )
+    cleaned: list[str] = []
+    for line in text.splitlines():
+        s = line.lstrip()
+        if s.startswith(bad_prefixes):
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned)
+
 def require_workspace_cdr() -> str:
+
     cdr = os.environ.get("WORKSPACE_CDR", "").strip()
     if not cdr:
         raise EnvironmentError("WORKSPACE_CDR is not set in this notebook runtime.")

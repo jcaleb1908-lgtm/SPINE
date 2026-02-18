@@ -20,3 +20,12 @@ Quick notebook usage:
 extracts = extract_generated_exports()   # uses WORKSPACE_CDR
 print_tables_fully(extracts)
 ```
+
+
+If you accidentally paste a git diff into a notebook cell (e.g., lines starting with `diff --git`), clean it first:
+
+```python
+cleaned = strip_git_patch_headers(raw_text)
+cleaned = strip_git_conflict_markers(cleaned)
+exec(cleaned)
+```
