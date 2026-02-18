@@ -1,17 +1,13 @@
 # SPINE
 
-Project 6 spine analysis pipeline.
+Utilities for Project 6 (degenerative spine disease + diabetes medications).
 
-## Notebook-safe generated export helpers (inside `spine`)
+## Notebook extraction helper
 
-To avoid entangled copy/paste SQL cells, use these functions from the `spine` script:
+Use `notebook_extract_refactor.py` when generated All of Us SQL cells become duplicated/entangled.
+It keeps one shared cohort filter and provides reusable extract helpers:
 
-- `cohort_filter_sql_for_generated_exports(dataset, person_alias)`
-- `generated_person_sql(dataset)`
-- `generated_domain_sql(spec, dataset)`
-- `generated_survey_sql(dataset)`
-- `extract_generated_exports(dataset)`
-- `preview_generated_exports(extracts, rows=5)`
+- `extract_person()`
+- `extract_domain(domain, concept_ids, datetime_col)` for `condition_occurrence`, `drug_exposure`, `measurement`
 
-These are designed for All of Us Workbench notebook workflows and return pandas DataFrames
-that are easy to print/copy.
+This is intended for copy/paste adaptation inside the All of Us Workbench Jupyter environment.
