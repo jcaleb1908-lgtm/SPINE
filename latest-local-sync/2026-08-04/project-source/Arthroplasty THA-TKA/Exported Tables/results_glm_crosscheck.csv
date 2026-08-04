@@ -1,0 +1,7 @@
+comparison,outcome,OR,CI_lo,CI_hi,p,n,n_events,method
+Insulin vs Metformin,composite_90d,2.228,1.242,3.996,0.007,305,87,GLM-HC3
+Insulin vs Metformin,postop_opioid,1.529,0.81,2.886,0.19,305,242,GLM-HC3
+OtherDM vs Metformin,composite_90d,4.103,1.803,9.339,0.001,167,44,GLM-HC3
+OtherDM vs Metformin,postop_opioid,4.006,1.189,13.496,0.025,167,133,GLM-HC3
+DietControlled vs Metformin,composite_90d,1.549,0.925,2.593,0.096,728,200,GLM-HC3
+DietControlled vs Metformin,postop_opioid,0.299,0.174,0.513,0.0,728,452,GLM-HC3

@@ -1,0 +1,7 @@
+comparison,outcome,OR,CI_lo,CI_hi,p,n,n_events
+Insulin vs Metformin,composite_90d,2.158,1.297,4.115,0.002,305,87
+Insulin vs Metformin,postop_opioid,1.494,0.8,2.737,0.244,305,242
+OtherDM vs Metformin,composite_90d,3.718,1.736,9.114,0.002,167,44
+OtherDM vs Metformin,postop_opioid,3.348,1.371,11.115,0.004,167,133
+DietControlled vs Metformin,composite_90d,1.541,0.958,2.772,0.076,728,200
+DietControlled vs Metformin,postop_opioid,0.309,0.174,0.506,0.002,728,452
